@@ -9,15 +9,39 @@ const { Octokit } = require("@octokit/rest");
 // ==========================
 // 🔑 Konfigurasi
 // ==========================
-const BOT_TOKEN = "8089493197:AAG2QNzfIB7Cc8l6fiFmokUV9N5df-oJabg";
-const GITHUB_TOKEN = "GITHUB_PERSONAL_ACCESS_TOKEN";
-const GITHUB_USER = "aanzapi"; // ganti dengan username GitHub kamu
+const BOT_TOKEN = "TELEGRAM_BOT_TOKEN"; // ganti dengan token bot tele kamu
+const GITHUB_TOKEN = "GITHUB_PERSONAL_ACCESS_TOKEN"; // ganti dengan PAT github kamu
+const GITHUB_USER = "username"; // ganti dengan username GitHub kamu
 
 const bot = new TelegramBot(BOT_TOKEN, { polling: true });
 const octokit = new Octokit({ auth: GITHUB_TOKEN });
 
 // ==========================
-// 📥 Command /upload
+// 📋 Menu Utama
+// ==========================
+const menuText = `
+*🤖 GitHub Uploader Bot*
+
+📌 Perintah yang tersedia:
+1️⃣ /upload <namarepo>
+   → Reply file .zip dengan command ini untuk upload & push ke GitHub
+
+2️⃣ /listrepo
+   → Lihat daftar repository GitHub kamu
+
+3️⃣ /delete <namarepo>
+   → Hapus repository di GitHub
+
+4️⃣ /menu
+   → Tampilkan menu ini lagi
+`;
+
+bot.onText(/\/menu/, (msg) => {
+  bot.sendMessage(msg.chat.id, menuText, { parse_mode: "Markdown" });
+});
+
+// ==========================
+// 📥 Upload Command
 // ==========================
 bot.onText(/\/upload (.+)/, async (msg, match) => {
   const chatId = msg.chat.id;
@@ -26,7 +50,7 @@ bot.onText(/\/upload (.+)/, async (msg, match) => {
   if (!msg.reply_to_message || !msg.reply_to_message.document) {
     return bot.sendMessage(
       chatId,
-      "⚠️ Cara pakai:\n1. Upload file `.zip`\n2. Reply file itu dengan `/upload namarepo`",
+      "⚠️ *Cara pakai:*\n1. Upload file `.zip`\n2. Reply file itu dengan `/upload namarepo`",
       { parse_mode: "Markdown" }
     );
   }
@@ -61,7 +85,7 @@ bot.onText(/\/upload (.+)/, async (msg, match) => {
     if (!repoExists) {
       await octokit.repos.createForAuthenticatedUser({
         name: repoName,
-        private: false, // true kalau mau repo private
+        private: false, // true kalau mau private
       });
       await bot.sendMessage(chatId, `📂 Repo baru dibuat: *${repoName}*`, { parse_mode: "Markdown" });
     }
@@ -69,17 +93,33 @@ bot.onText(/\/upload (.+)/, async (msg, match) => {
     // 5. 🚀 Push ke GitHub
     const git = simpleGit(extractPath);
     await git.init();
+
+    // Tambahin remote
     await git.addRemote(
       "origin",
       `https://${GITHUB_USER}:${GITHUB_TOKEN}@github.com/${GITHUB_USER}/${repoName}.git`
     );
+
+    // 🔧 Set git config supaya gak error "Author identity unknown"
+    await git.addConfig("user.name", "Aanz Bot");
+    await git.addConfig("user.email", "aanz@example.com");
+
+    // Commit & push
     await git.add(".");
     await git.commit("Upload via Telegram Bot");
-    await git.push("origin", "main", ["--force"]);
+
+    try {
+      await git.push("origin", "main");
+    } catch (err) {
+      // Kalau branch main belum ada, buat dulu
+      await git.checkoutLocalBranch("main");
+      await git.push("origin", "main");
+    }
 
     bot.sendMessage(
       chatId,
-      `✅ Berhasil upload & push ke GitHub!\n🔗 https://github.com/${GITHUB_USER}/${repoName}`
+      `✅ *Berhasil upload & push ke GitHub!*\n🔗 https://github.com/${GITHUB_USER}/${repoName}`,
+      { parse_mode: "Markdown" }
     );
   } catch (err) {
     console.error(err);
@@ -88,21 +128,24 @@ bot.onText(/\/upload (.+)/, async (msg, match) => {
 });
 
 // ==========================
-// 📋 Command /listrepo
+// 📋 List Repo
 // ==========================
 bot.onText(/\/listrepo/, async (msg) => {
   const chatId = msg.chat.id;
   try {
     const repos = await octokit.repos.listForAuthenticatedUser({ per_page: 10 });
+    if (repos.data.length === 0) {
+      return bot.sendMessage(chatId, "📭 Belum ada repo di GitHub kamu.");
+    }
     const list = repos.data.map(r => `- [${r.name}](${r.html_url})`).join("\n");
-    bot.sendMessage(chatId, `📂 Repo kamu:\n${list}`, { parse_mode: "Markdown" });
+    bot.sendMessage(chatId, `📂 *Daftar Repo Kamu:*\n\n${list}`, { parse_mode: "Markdown" });
   } catch (err) {
     bot.sendMessage(chatId, "❌ Gagal ambil daftar repo");
   }
 });
 
 // ==========================
-// 🗑️ Command /delete
+// 🗑️ Delete Repo
 // ==========================
 bot.onText(/\/delete (.+)/, async (msg, match) => {
   const chatId = msg.chat.id;
