@@ -1,0 +1,16 @@
+{
+  "name": "github-uploader-bot",
+  "version": "1.0.0",
+  "description": "Telegram bot untuk upload file .zip ke GitHub",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "@octokit/rest": "^21.0.0",
+    "adm-zip": "^0.5.12",
+    "axios": "^1.7.0",
+    "node-telegram-bot-api": "^0.61.0",
+    "simple-git": "^3.20.0"
+  }
+}
