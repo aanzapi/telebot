@@ -158,4 +158,50 @@ bot.onText(/\/delete (.+)/, async (msg, match) => {
   }
 });
 
+// =========================
+// 📌 DEPLOY REPO KE VERCEL
+// =========================
+bot.onText(/\/deploy (.+)/, async (msg, match) => {
+  const chatId = msg.chat.id;
+  const repoName = match[1].trim();
+
+  const vercelToken = "pQA8IIngagr9sFEa1YimRT6Q"; // buat di dashboard.vercel.com
+
+  try {
+    // Trigger deploy ke Vercel
+    const deployRes = await fetch(`https://api.vercel.com/v13/deployments`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${vercelToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        name: repoName, // nama project di vercel
+        gitSource: {
+          type: "github",
+          repoId: `${GITHUB_USER}/${repoName}`, // user/repo
+          ref: "main", // branch yang di-deploy
+        },
+      }),
+    });
+
+    const data = await deployRes.json();
+
+    if (data.url) {
+      bot.sendMessage(
+        chatId,
+        `🚀 Deploy *${repoName}* sukses!\n🔗 https://${data.url}`,
+        { parse_mode: "Markdown" }
+      );
+    } else {
+      bot.sendMessage(
+        chatId,
+        `⚠️ Deploy gagal:\n${JSON.stringify(data, null, 2)}`
+      );
+    }
+  } catch (err) {
+    console.error("DEPLOY ERROR:", err);
+    bot.sendMessage(chatId, `❌ Error deploy: ${err.message}`);
+  }
+});
 console.log("🤖 Bot berjalan...");
